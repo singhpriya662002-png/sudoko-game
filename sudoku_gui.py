@@ -15,6 +15,7 @@ class SudokuGUI:
         self.timer_running = False
         self.current_difficulty = "Easy"
         self.game_started = False
+        self.current_solution = None
         self.assets_path = os.path.join(os.path.dirname(__file__), "assets")
         self.load_assets()
         
@@ -93,7 +94,7 @@ class SudokuGUI:
                                 bg="#1A120B", fg="#E5E5CB", insertbackground="#E5E5CB",
                                 state='disabled', disabledbackground="#1A120B", disabledforeground="#D5CEA3")
                 entry.grid(row=r, column=c, padx=padx, pady=pady, sticky="nsew")
-                entry.bind("<Key>", lambda e: self.reset_cell_colors())
+                entry.bind("<KeyRelease>", lambda e, row=r, col=c: self.validate_input(row, col))
                 self.cells[(r, c)] = entry
 
     def create_levels(self):
@@ -127,7 +128,8 @@ class SudokuGUI:
         self.stop_timer()
         self.reset_cell_colors()
         
-        board = generate_puzzle(difficulty)
+        board, sol = generate_puzzle(difficulty)
+        self.current_solution = sol
         self.clear_grid()
         self.set_board(board)
         self.reset_cell_colors()
@@ -220,6 +222,49 @@ class SudokuGUI:
             board.append(row)
         return board
 
+    def get_current_board_quiet(self):
+        board = []
+        for r in range(9):
+            row = []
+            for c in range(9):
+                val = self.cells[(r, c)].get()
+                if val == "":
+                    row.append(0)
+                else:
+                    try:
+                        num = int(val)
+                        if 1 <= num <= 9:
+                            row.append(num)
+                        else:
+                            row.append(0)
+                    except ValueError:
+                        row.append(0)
+            board.append(row)
+        return board
+
+    def validate_input(self, row, col):
+        if not self.game_started:
+            return
+            
+        val = self.cells[(row, col)].get()
+        if val == "":
+            self.cells[(row, col)].config(bg="#1A120B", fg="#E5E5CB")
+            return
+            
+        try:
+            num = int(val)
+            if 1 <= num <= 9:
+                board = self.get_current_board_quiet()
+                board[row][col] = 0
+                if is_valid(board, row, col, num):
+                    self.cells[(row, col)].config(bg="#1A120B", fg="#E5E5CB")
+                else:
+                    self.cells[(row, col)].config(bg="#721c24", fg="white")
+            else:
+                self.cells[(row, col)].config(bg="#721c24", fg="white")
+        except ValueError:
+            self.cells[(row, col)].config(bg="#721c24", fg="white")
+
     def set_board(self, board):
         for r in range(9):
             for c in range(9):
@@ -302,6 +347,14 @@ class SudokuGUI:
         
         self.clear_grid()
         self.set_board(sample)
+        
+        # Calculate solution for sample
+        sol = [row[:] for row in sample]
+        if solve(sol):
+            self.current_solution = sol
+        else:
+            self.current_solution = None
+
         self.reset_cell_colors()
         
         if hasattr(self, 'start_btn'):
@@ -343,7 +396,15 @@ class SudokuGUI:
             for r, c in errors:
                 # Highlight incorrect cell with red background
                 self.cells[(r, c)].config(bg="#721c24", fg="white")
-            messagebox.showerror("Mistakes Found", f"You have {len(errors)} incorrect inputs! These have been highlighted in red.")
+            
+            msg = f"You have {len(errors)} incorrect inputs!"
+            if self.current_solution:
+                if messagebox.askyesno("Mistakes Found", f"{msg}\n\nWould you like to see the correct solution?"):
+                    self.set_board(self.current_solution)
+                    self.reset_cell_colors()
+                    messagebox.showinfo("Correct Solution", "The board has been updated with the correct solution.")
+            else:
+                messagebox.showerror("Mistakes Found", msg)
             return
 
         self.stop_timer()

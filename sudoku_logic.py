@@ -64,6 +64,9 @@ def generate_puzzle(difficulty):
     board = [[0 for _ in range(9)] for _ in range(9)]
     fill_board(board)
     
+    # Keep a copy of the full board as the solution
+    solution = [row[:] for row in board]
+    
     clues = {"Easy": 40, "Medium": 30, "Hard": 20}
     attempts = 81 - clues.get(difficulty, 30)
     
@@ -74,7 +77,7 @@ def generate_puzzle(difficulty):
             board[row][col] = 0
             attempts -= 1
             
-    return board
+    return board, solution
 
 def print_board(board):
     for i in range(len(board)):
